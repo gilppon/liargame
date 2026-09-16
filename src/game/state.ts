@@ -6,7 +6,7 @@ import { adaptiveStages } from './stages';
 export interface Metrics { left:number;right:number;opposed:number;actions:number;early:number;inspections:number;hints:number;repeated:number;waits:number;color:number;sound:number;inventory:number;lastAction:string; }
 export interface Progress {step:number;completed:boolean;inspected:number[];secret:boolean;sequence:number[];itemsTaken:string[];seed:number;variant:string;waitAt:number|null;balance:number[];}
 export interface SaveData {version:1;stage:number;position:{x:number;y:number};progress:Record<number,Progress>;inventory:string[];evidence:{stage:number;step:number;text:string}[];logs:number[];metrics:Metrics;playTime:number;endings:number[];savedAt:number;}
-export interface Settings {sound:boolean;music:boolean;contrast:boolean;reduced:boolean;largeText:boolean;slow:boolean;showHotspots:boolean;language:'ko'|'en';}
+export interface Settings {sound:boolean;music:boolean;contrast:boolean;reduced:boolean;largeText:boolean;slow:boolean;showHotspots:boolean;language:'ko'|'en'|'ja';}
 const SAVE_KEY='deceptive-guide-save-v1';
 const settingsKey='deceptive-guide-settings-v1';
 class GameDB extends Dexie { saves!:Table<{id:string;data:SaveData}>; constructor(){super('DeceptiveGuide');this.version(1).stores({saves:'id'});} }
@@ -29,6 +29,14 @@ export function saveSettings(settings:Settings){try{localStorage.setItem(setting
 export function formatTime(seconds:number){return `${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}`;}
 export const characterMachine=createMachine({id:'pin',initial:'idle',states:{idle:{on:{WALK:'walking',INSPECT:'inspecting',FAIL:'confused',SUCCESS:'victory'}},walking:{on:{STOP:'idle',INSPECT:'inspecting',FAIL:'confused',SUCCESS:'victory'},after:{1100:'idle'}},inspecting:{on:{WALK:'walking',FAIL:'confused',SUCCESS:'victory'},after:{1800:'idle'}},confused:{on:{WALK:'walking',SUCCESS:'victory'},after:{1400:'idle'}},victory:{on:{WALK:'walking'},after:{2000:'idle'}}}});
 export const pinActor=createActor(characterMachine).start();
-let audio:AudioContext|null=null;
-export function playTone(type:'click'|'success'|'fail'|'step',enabled:boolean){if(!enabled)return;try{audio??=new AudioContext();if(audio.state==='suspended')void audio.resume();const tones=type==='success'?[440,554,660]:type==='fail'?[180,130]:type==='step'?[240]:[620];tones.forEach((f,index)=>{const o=audio!.createOscillator(),g=audio!.createGain(),at=audio!.currentTime+index*.10;o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.035,at);g.gain.exponentialRampToValueAtTime(.001,at+.16);o.connect(g);g.connect(audio!.destination);o.start(at);o.stop(at+.18);});}catch{}}
-export function startAmbience(){try{audio??=new AudioContext();void audio.resume();const oscillators=[65.41,98,130.81].map((frequency,index)=>{const o=audio!.createOscillator();const g=audio!.createGain();o.type='sine';o.frequency.value=frequency;g.gain.value=.012/(index+1);o.connect(g);g.connect(audio!.destination);o.start();return o;});return ()=>oscillators.forEach(o=>o.stop());}catch{return ()=>{};}}
+import { playBlip, playGlitchShock, playPuzzleSuccess, playPuzzleFail, playInteract } from './audio';
+export { playBlip, playGlitchShock, playPuzzleSuccess, playPuzzleFail, playInteract };
+export function playTone(type:'click'|'success'|'fail'|'step',enabled:boolean){
+ if(!enabled)return;
+ if(type==='success') playPuzzleSuccess(enabled);
+ else if(type==='fail') playPuzzleFail(enabled);
+ else if(type==='step') playInteract('step',enabled);
+ else playInteract('click',enabled);
+}
+let ambienceCtx:AudioContext|null=null;
+export function startAmbience(){try{ambienceCtx??=new AudioContext();void ambienceCtx.resume();const oscillators=[65.41,98,130.81].map((frequency,index)=>{const o=ambienceCtx!.createOscillator();const g=ambienceCtx!.createGain();o.type='sine';o.frequency.value=frequency;g.gain.value=.012/(index+1);o.connect(g);g.connect(ambienceCtx!.destination);o.start();return o;});return ()=>oscillators.forEach(o=>o.stop());}catch{return ()=>{};}}

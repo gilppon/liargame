@@ -39,3 +39,9 @@ blob-report
 # OS files
 .DS_Store
 Thumbs.db
+
+# Tauri build artifacts
+src-tauri/target
+
+# Temporary scratch folder
+scratch/
